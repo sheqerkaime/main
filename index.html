@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Te Dua Inush</title>
+    <style>
+        #floatingButton {
+            position: fixed;
+            top: 1em;
+            left: 1em;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+	
+<style>
+body {
+  text-align: center;
+  min-height: 100vh;
+  background: black;
+  color: whitesmoke;
+  display: flex;
+  overflow: hidden;
+}
+h1 {
+  margin: auto;
+  font-family: Gorditas;
+  font-size: 6rem;
+}
+
+canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 1;
+  pointer-events: none;
+}
+.td-wrapper,
+canvas {
+  transition: opacity 1s;
+}
+.td-wrapper:not(.td-hide) + canvas,
+.td-hide {
+  opacity: 0;
+}
+
+</style>
+</head>
+<body>
+<h1>
+  <span>TE DUA</span> <span style="color: rgb(255, 0, 0)">&hearts;</span><span style="color: rgb(255, 4, 92)">DORINA</span><span style="color: rgb(255, 0, 0)">&hearts;</span>
+  <span></span>
+</h1>
+<script>
+class TextDesintegrator {
+  constructor(el, options) {
+    const defaultOptions = {
+      padding: 160,
+      density: 4,
+      duration: 2500 // in ms
+    };
+    this.step = 0;
+    this.count = 0;
+    this.data = [];
+    this.scale = 2; // pixel density
+    this.el = el;
+    this.el.style.position = "relative";
+    this.el.innerHTML = `<span class="td-wrapper">${this.el.textContent}</span>`;
+    this.inner = this.el.querySelector("span");
+    this.options = { ...defaultOptions, ...options };
+    this.reverse = false;
+    // copy el to canvas
+
+    document.fonts.ready.then(() => {
+      this.createCanvas();
+      this.fillCanvas();
+      this.pixelize();
+      setTimeout(() => {
+        this.start();
+      }, 0);
+    });
+  }
+  createCanvas() {
+    // get the width and the height of the span element
+    // canvas will have the same dimensions
+    const { width, height } = this.el.getBoundingClientRect();
+    this.height = height;
+    this.width = width;
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = this.scale * (this.width + 2 * this.options.padding);
+    this.canvas.height = this.scale * (this.height + 2 * this.options.padding);
+    this.canvas.style.width = `${this.width + 2 * this.options.padding}px`;
+    this.canvas.style.height = `${this.height + 2 * this.options.padding}px`;
+    this.canvas.style.transform = `translate3d(${-this.options
+      .padding}px, ${-this.options.padding}px, 0)`;
+    this.context = this.canvas.getContext("2d");
+    this.context.scale(this.scale, this.scale);
+    this.el.append(this.canvas);
+  }
+  clearContext() {
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+  fillCanvas() {
+    const style = getComputedStyle(this.el);
+    this.color = style.getPropertyValue("color");
+    this.context.fillStyle = this.color;
+    this.context.font = style.getPropertyValue("font");
+    this.context.textBaseline = "ideographic";
+    this.context.fillText(
+      this.el.textContent,
+      this.options.padding,
+      (this.canvas.height / this.scale + this.height) / 2
+    );
+  }
+  start() {
+    this.t0 = 0;
+    this.id = window.requestAnimationFrame((t) => this.render(t));
+  }
+  stop() {
+    if (this.id) {
+      window.cancelAnimationFrame(this.id);
+    }
+  }
+  pixelize() {
+    const { padding, density, duration } = this.options;
+    for (
+      let y = 0;
+      y < this.canvas.height + 2 * padding - Math.floor(density / 2);
+      y += density
+    ) {
+      for (
+        let x = 0;
+        x < this.canvas.width + 2 * padding - Math.floor(density / 2);
+        x += density
+      ) {
+        const { data } = this.context.getImageData(
+          x + Math.floor(density / 4),
+          y + Math.floor(density / 4),
+          1,
+          1
+        );
+        const [, , , a] = data;
+        if (a > 0) {
+          this.data.push({
+            alpha: a / 255,
+            longevity: Math.min(
+              duration * 0.25 + Math.random() * duration * 0.75,
+              duration - 1
+            ),
+            x,
+            y,
+            initialX: x,
+            initialY: y,
+            finalX: x + 2 * (Math.random() - 0.5) * this.canvas.width,
+            finalY: y + 2 * (Math.random() - 0.5) * this.canvas.width
+          });
+        }
+      }
+    }
+  }
+
+  render(timestamp) {
+    if (!this.t0) {
+      this.t0 = timestamp;
+    }
+    const elapsed = timestamp - this.t0;
+    if (this.step < Math.min(500, this.options.duration * 0.5)) {
+      if (this.reverse) {
+        this.inner.classList.remove("td-hide");
+      } else {
+        this.inner.classList.add("td-hide");
+      }
+    }
+    this.updateData();
+    this.clearContext();
+    for (const sq of this.data) {
+      this.context.globalAlpha = sq.alpha;
+      this.context.fillStyle = this.color;
+      this.context.fillRect(
+        sq.x / 2,
+        sq.y / 2,
+        this.options.density / 2,
+        this.options.density / 2
+      );
+    }
+    this.step = this.reverse ? this.options.duration - elapsed : elapsed;
+    if (elapsed > this.options.duration) {
+      this.onComplete();
+    }
+    this.id = requestAnimationFrame((t) => this.render(t));
+  }
+  onComplete() {
+    this.reverse = !this.reverse;
+    this.t0 = 0;
+  }
+  updateData() {
+    for (const sq of this.data) {
+      sq.alpha = this.calculateOpacity(sq.longevity, this.step);
+      sq.x = this.calculatePosition(
+        sq.initialX,
+        sq.finalX,
+        sq.longevity,
+        this.step
+      );
+      sq.y = this.calculatePosition(
+        sq.initialY,
+        sq.finalY,
+        sq.longevity,
+        this.step
+      );
+    }
+  }
+  calculatePosition(xS, xE, l, x) {
+    const expo = (l, x) => {
+      return x < l ? 1 - Math.pow(2, 10 * (x / l) - 10) : 0;
+    };
+    const val = (xS - xE) * expo(l, x) + xE;
+    return val;
+  }
+  calculateOpacity(l, x) {
+    return x <= l ? 1 - Math.pow(x / l, 1) : 0;
+  }
+}
+
+const h1 = document.querySelectorAll("h1 span");
+
+h1.forEach((el) => new TextDesintegrator(el));
+
+</script>
+
+<button id="floatingButton" onclick="playMusic()">Play Music (<i>nje melodi per ty</i>)</button>
+    <audio id="myAudio" src="sound3.mp3" loop></audio>
+    <script>
+        function playMusic() {
+            var audio = document.getElementById("myAudio");
+            audio.play();
+			document.getElementById("floatingButton").innerHTML="Melodia po luhet ne sfond";
+			document.getElementById("floatingButton").style.backgroundColor="#4CDF50";
+			document.getElementById("floatingButton").style.opacity="0.4";
+        }
+    </script>
+	
+	
+<div class="stars" style="z-index:-1000"></div>
+<div class="twinkling" style="z-index:-1000"></div>
+<div class="clouds" style="z-index:-1000"></div>
+<style>
+/* ============================================================================================== 
+SED Innovations
+https://sed.am
+https://mkrtchyan.ga
+================================================================================================= */
+* {
+    margin: 0;
+    padding: 0;
+}
+header {
+    background-color:rgba(33, 33, 33, 0.9);
+    color:#ffffff;
+    display:block;
+    font: 14px/1.3 Arial,sans-serif;
+    height:50px;
+    position:relative;
+    z-index:5;
+}
+h2{
+    margin-top: 30px;
+    text-align: center;
+}
+header h2{
+    font-size: 22px;
+    margin: 0 auto;
+    padding: 10px 0;
+    width: 80%;
+    text-align: center;
+}
+header a, a:visited {
+    text-decoration:none;
+    color:#fcfcfc;
+}
+
+@keyframes move-twink-back {
+    from {background-position:0 0;}
+    to {background-position:-10000px 5000px;}
+}
+@-webkit-keyframes move-twink-back {
+    from {background-position:0 0;}
+    to {background-position:-10000px 5000px;}
+}
+@-moz-keyframes move-twink-back {
+    from {background-position:0 0;}
+    to {background-position:-10000px 5000px;}
+}
+@-ms-keyframes move-twink-back {
+    from {background-position:0 0;}
+    to {background-position:-10000px 5000px;}
+}
+
+@keyframes move-clouds-back {
+    from {background-position:0 0;}
+    to {background-position:10000px 0;}
+}
+@-webkit-keyframes move-clouds-back {
+    from {background-position:0 0;}
+    to {background-position:10000px 0;}
+}
+@-moz-keyframes move-clouds-back {
+    from {background-position:0 0;}
+    to {background-position:10000px 0;}
+}
+@-ms-keyframes move-clouds-back {
+    from {background-position: 0;}
+    to {background-position:10000px 0;}
+}
+
+.stars, .twinkling, .clouds {
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  bottom:0;
+  width:100%;
+  height:100%;
+  display:block;
+}
+
+.stars {
+  background:#000 url(http://www.script-tutorials.com/demos/360/images/stars.png) repeat top center;
+  z-index:0;
+}
+
+.twinkling{
+  background:transparent url(http://www.script-tutorials.com/demos/360/images/twinkling.png) repeat top center;
+  z-index:1;
+
+  -moz-animation:move-twink-back 200s linear infinite;
+  -ms-animation:move-twink-back 200s linear infinite;
+  -o-animation:move-twink-back 200s linear infinite;
+  -webkit-animation:move-twink-back 200s linear infinite;
+  animation:move-twink-back 200s linear infinite;
+}
+
+.clouds{
+    background:transparent url(http://www.script-tutorials.com/demos/360/images/clouds3.png) repeat top center;
+    z-index:3;
+
+  -moz-animation:move-clouds-back 200s linear infinite;
+  -ms-animation:move-clouds-back 200s linear infinite;
+  -o-animation:move-clouds-back 200s linear infinite;
+  -webkit-animation:move-clouds-back 200s linear infinite;
+  animation:move-clouds-back 200s linear infinite;
+}
+</style>	
+</body>
+</html>
